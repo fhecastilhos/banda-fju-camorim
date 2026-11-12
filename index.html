@@ -476,14 +476,16 @@ function stripHeader(t) {
   if (!head.length || head.length > 3 || head.some(l => /^\s*\[/.test(l))) return t;
   return L.slice(k).join("\n");
 }
-const SECTION_RE = /^((?:pr[eé][- ]?)?refr[aã]o|intro(?:du[cç][aã]o)?|ponte|verso|estrofe|coro|solo|final|interl[uú]dio|outro|tag|(?:primeira|segunda|terceira|quarta)\s+parte|parte\s*\d+)(\s*\d+)?\s*(?::\s*(.*)|(\(\s*\d+\s*x\s*\))\s*:?)?\s*$/i;
+const SECTION_RE = /^((?:pr[eé][- ]?)?refr[aã]o|intro(?:du[cç][aã]o)?|ponte|verso|estrofe|coro|solo|final|interl[uú]dio|outro|tag|instrumental|bateria|baixo|guitarra|teclado|viol[aã]o|s[oó] voz|a capela|todos|(?:primeira|segunda|terceira|quarta)\s+parte|parte\s*\d+)(\s*\d+(?:\s*x\b)?)?\s*(?::\s*(.*)|(\(\s*\d+\s*x\s*\))\s*:?)?\s*$/i;
 function renderText(text, delta, flats, aligned) {
   const html = [], plain = [];
   cleanPaste(text).split("\n").forEach(line => {
     const t = line.trim();
     // "[Refrão] (2x)" ou partes sem colchete, como "Intro: G D" ou "Refrão (2x)"
     let sec = t.match(/^\[(.+?)\]\s*(.*)$/);
-    const plainSec = !sec && t.match(SECTION_RE);
+    // Também "(Intro)", "(Refrão 2x)", "(BATERIA)" e a linha "Tom: G"
+    const inner = t.match(/^\((.+)\)$/);
+    const plainSec = !sec && (t.match(SECTION_RE) || (inner && inner[1].trim().match(SECTION_RE)) || t.match(/^(tom)\s*:\s*(?:)()(.*)$/i));
     if (plainSec) sec = [t, [plainSec[1], plainSec[2], plainSec[4]].filter(Boolean).map(x => x.trim()).join(" "), (plainSec[3] || "").trim()];
     if (sec) {
       // Ex.: "[Refrão] (2x)" ou "[Intro] G Em D C" (aí os acordes também mudam de tom)
@@ -492,6 +494,11 @@ function renderText(text, delta, flats, aligned) {
       plain.push(sec[1] + ":" + (rest.text ? " " + rest.text : ""));
     }
     else if (isChordLine(line)) { const r = chordLine(line, delta, flats, aligned); html.push(r.html); plain.push(r.text); }
+    else if (/\(.*\)\s*$/.test(t) && isChordLine(t.replace(/\(.*\)\s*$/, ""))) {
+      // Ex.: "A A D G (129 bpm)": acordes em laranja e o comentário em cinza
+      const m = t.match(/^(.*?)\s*(\(.*\))\s*$/); const r = chordLine(m[1], delta, flats, false);
+      html.push(`${r.html} <span class="rep">${esc(m[2])}</span>`); plain.push(`${r.text} ${m[2]}`);
+    }
     else { html.push(esc(line)); plain.push(line); }
   });
   return { html: html.join("\n"), text: plain.join("\n") };

@@ -139,7 +139,7 @@ textarea { font-family: var(--font-mono); font-size: 16px; min-height: 180px; re
 /* Folha de cifra */
 .sheet { font-family: var(--font-mono); font-size: 16px; line-height: 1.75; background: var(--sheet-bg); color: var(--sheet-ink); border: 0; border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; white-space: pre; }
 .sheet .c { color: var(--sheet-chord); font-weight: 700; }
-.sheet .lbl { color: var(--sheet-label); font-family: var(--font-body); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.sheet .lbl { color: var(--sheet-chord); font-family: var(--font-body); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
 .keybar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
 .keybar select { width: auto; min-width: 84px; font-family: var(--font-mono); font-weight: 700; }
 .note { margin-top: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font-size: 14px; }
@@ -476,11 +476,15 @@ function stripHeader(t) {
   if (!head.length || head.length > 3 || head.some(l => /^\s*\[/.test(l))) return t;
   return L.slice(k).join("\n");
 }
+const SECTION_RE = /^((?:pr[eé][- ]?)?refr[aã]o|intro(?:du[cç][aã]o)?|ponte|verso|estrofe|coro|solo|final|interl[uú]dio|outro|tag|(?:primeira|segunda|terceira|quarta)\s+parte|parte\s*\d+)(\s*\d+)?\s*(?::\s*(.*)|(\(\s*\d+\s*x\s*\))\s*:?)?\s*$/i;
 function renderText(text, delta, flats, aligned) {
   const html = [], plain = [];
   cleanPaste(text).split("\n").forEach(line => {
     const t = line.trim();
-    const sec = t.match(/^\[(.+?)\]\s*(.*)$/);
+    // "[Refrão] (2x)" ou partes sem colchete, como "Intro: G D" ou "Refrão (2x)"
+    let sec = t.match(/^\[(.+?)\]\s*(.*)$/);
+    const plainSec = !sec && t.match(SECTION_RE);
+    if (plainSec) sec = [t, [plainSec[1], plainSec[2], plainSec[4]].filter(Boolean).map(x => x.trim()).join(" "), (plainSec[3] || "").trim()];
     if (sec) {
       // Ex.: "[Refrão] (2x)" ou "[Intro] G Em D C" (aí os acordes também mudam de tom)
       const rest = sec[2] && isChordLine(sec[2]) ? chordLine(sec[2], delta, flats, false) : { html: sec[2] ? `<span class="rep">${esc(sec[2])}</span>` : "", text: sec[2] };

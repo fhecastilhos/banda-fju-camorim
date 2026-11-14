@@ -137,7 +137,7 @@ textarea { font-family: var(--font-mono); font-size: 16px; min-height: 180px; re
 .inline-confirm { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
 
 /* Folha de cifra */
-.sheet { font-family: var(--font-mono); font-size: 16px; line-height: 1.75; background: var(--sheet-bg); color: var(--sheet-ink); border: 0; border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; white-space: pre; }
+.sheet { font-family: var(--font-mono); font-size: calc(16px * var(--zoom, 1)); line-height: 1.75; background: var(--sheet-bg); color: var(--sheet-ink); border: 0; border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; white-space: pre; }
 .sheet .c { color: var(--sheet-chord); font-weight: 700; }
 .sheet .lbl { color: var(--sheet-chord); font-family: var(--font-body); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
 .keybar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
@@ -154,10 +154,15 @@ textarea { font-family: var(--font-mono); font-size: 16px; min-height: 180px; re
 .card-head .meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .card .num { padding-top: 2px; }
 .card .keybar { margin: 0; }
-.card .sheet { padding: 10px 12px; font-size: 15px; line-height: 1.6; }
+.card .sheet { padding: 10px 12px; font-size: calc(15px * var(--zoom, 1)); line-height: 1.6; }
 .sheet .rep { color: var(--sheet-label); font-family: var(--font-body); font-size: 12px; }
 .card .note { margin: 0; }
-.card .sheet.lyr { font-size: 14px; line-height: 1.5; }
+.card .sheet.lyr { font-size: calc(14px * var(--zoom, 1)); line-height: 1.5; }
+/* Zoom da cifra: A− / A+ valem para todas as músicas e ficam guardados no aparelho */
+.zoombar { display: flex; gap: 8px; align-items: center; }
+.zoombar .iconbtn { width: 44px; height: 44px; font-weight: 700; font-size: 16px; }
+.zoombar .zv { min-width: 56px; justify-content: center; font-family: var(--font-mono); }
+.card .zoombar { margin: -2px 0 0; }
 a.btn { text-decoration: none; color: inherit; }
 .steps { padding-left: 20px; margin: 12px 0; display: grid; gap: 8px; }
 .card .sheet.closed { max-height: 9.6em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
@@ -1533,6 +1538,18 @@ function renderSetlist() {
   });
   $("setList").innerHTML = html;
 }
+// Zoom da cifra (letra grande demais para a tela): 50% a 160%, guardado no aparelho
+let zoom = lsGet("fju.zoom", 1);
+function applyZoom() { document.documentElement.style.setProperty("--zoom", zoom); document.querySelectorAll("[data-zoom-reset]").forEach(b => b.textContent = Math.round(zoom * 100) + "%"); }
+function setZoom(z) { zoom = Math.min(1.6, Math.max(0.5, Math.round(z * 10) / 10)); lsSet("fju.zoom", zoom); applyZoom(); }
+function zoomBar() {
+  return `<div class="zoombar">
+      <span class="label">Letra</span>
+      <button class="iconbtn" data-zoom="-0.1" aria-label="Diminuir letra">A−</button>
+      <button class="btn small ghost zv" data-zoom-reset aria-label="Voltar ao tamanho normal">${Math.round(zoom * 100)}%</button>
+      <button class="iconbtn" data-zoom="0.1" aria-label="Aumentar letra">A+</button>
+    </div>`;
+}
 // Cartão com a cifra já aberta (usado no repertório e na lista de músicas)
 function songCard(s, o) {
   const inSet = o.setIndex != null;
@@ -1563,6 +1580,7 @@ function songCard(s, o) {
       <button class="iconbtn" data-kstep="1" ${ref} aria-label="Meio tom acima">+</button>
       ${delta ? `<button class="btn small ghost" data-kreset ${ref}>Original (${esc(s.key)})</button>` : ""}
     </div>` : ""}
+    ${chords && aligned ? zoomBar() : ""}
     ${chords ? (isLong(chords) ? `<div class="sheet${aligned ? " lyr" : ""}${ui.open.has(s.id) ? "" : " closed"}">${renderSheet(chords, delta, flats, aligned)}</div>
       <button class="btn small expand" data-expand="${esc(s.id)}" aria-expanded="${ui.open.has(s.id)}">${ui.open.has(s.id) ? "▴ Recolher" : aligned ? "▾ Ver cifra com letra" : "▾ Ver cifra inteira"}</button>`
       : `<div class="sheet${aligned ? " lyr" : ""}">${renderSheet(chords, delta, flats, aligned)}</div>`)
@@ -1818,7 +1836,8 @@ function renderSongView() {
           <button class="iconbtn" data-step="1" aria-label="Meio tom acima">+</button>
           ${delta ? `<button class="btn small ghost" data-reset>Original (${esc(s.key)})</button>` : ""}
         </div>` : ""}
-      ${body ? `<div class="sheet">${renderSheet(body, delta, flats, !!s.full)}</div>` : ""}
+      ${body ? zoomBar() : ""}
+      ${body ? `<div class="sheet" style="margin-top:10px">${renderSheet(body, delta, flats, !!s.full)}</div>` : ""}
       ${s.note ? `<div class="note">${esc(s.note)}</div>` : ""}
       ${body ? `<div class="row" style="margin-top:16px"><button class="btn" data-copy-sheet>Copiar neste tom</button></div>` : ""}
     </div>`;
@@ -2231,6 +2250,8 @@ document.addEventListener("click", (e) => {
     const s = getSong(view.id); const { delta, flats } = sheetFor(s, view.key);
     copyText(`${s.title}${view.key ? " (Tom " + view.key + ")" : ""}\n` + transposeText(s.full || chordsOf(s), delta, flats, !!s.full).replace(/^\[(.*)\]$/gm, "$1:"), "Cifra copiada");
   }
+  else if (d.zoom) setZoom(zoom + +d.zoom);
+  else if (d.zoomReset != null) setZoom(1);
   else if (d.mode) { hf.mode = d.mode; renderField(); }
   else if (d.field) { const [pc, mode] = d.field.split("|"); hf.pc = +pc; hf.mode = mode; renderField(); location.hash = "campo"; }
 });
@@ -2275,6 +2296,7 @@ state.setlist = lsGet("fju.setlist", null) || (window.SNAPSHOT && window.SNAPSHO
   date: nextSunday(),
   items: ["deus-da-minha-vida", "arraial-dos-santos", "celebrai-a-cristo", "louve", "espalha-espalha", "consagracao", "deus-acima-de-tudo"].map(id => ({ id, key: seedById[id].key }))
 };
+applyZoom();
 prefs.simple = true; // a banda sempre usa acordes simples (A/C# → A, A4 → A)
 route();
 renderAll();
